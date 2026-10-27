@@ -75,8 +75,6 @@ Linking against that runtime dependency from the application:
 ```
 cl /nologo /std:c++17 /EHsc /MT /Iinclude "src/main.cpp" /Fo:"target/MT/" /Fe:"target/MT/main.exe" /link "target/MT/test_libdll.lib"
 
-Dump of file .\target\MT\test_lib.dll
-
 File Type: DLL
 
 Dump of file .\target\MT\main.exe
