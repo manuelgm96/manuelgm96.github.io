@@ -1,57 +1,63 @@
-## Playing with Dependencies
+# Playing with Dependencies
+
 Oct 27, 2026
 
 ---
 
-Ive always wondered what's the deal with dependencies in C/C++ and why was it so hard to integrate code to an application compared to applications developed in other languages that usually are built using a package manager.
+I've always wondered what's the deal with dependencies in C/C++ and why it's so hard to integrate code into an application compared to applications developed in other languages, which are usually built using a package manager.
 
-After playing for a bit with and with some confidence lets try to clarify some ideas so at least the cornerstone is set
+After playing around with this for a bit and gaining some confidence, let's try to clarify a few ideas so that, at least, we can lay the groundwork.
 
-From the perspective of creating a dependency, lets say raylib.
-The two options to create a library are runtime and static.
+From the perspective of creating a dependency, let's say raylib, there are two options for creating a library: runtime (dynamic) and static.
 
-A runtime library allows your application to access code that doesnt come from itself, you only have to permanently add to your code the import library to resolve runtime symbols.
+A runtime library allows your application to access code that doesn't come from the application itself. You only have to link your application against the import library to resolve the runtime symbols.
 
+## As a library provider
 
-##### As a lib provider
+How to create a runtime library using Microsoft's compiler and linker:
 
-How to create a runtime library using the compiler and linker from Microsoft:
-```
+```bat
 cl /LD "src/test_lib.cpp" /link /OUT:"target/MT/test_lib.dll" /IMPLIB:"target/MT/test_libdll.lib"
 ```
 
+How to create a static library using Microsoft's compiler and linker:
 
-How to create a static library using the compiler and linker from Microsoft:
-```
+```bat
 cl /c "src/test_lib.cpp"
 lib /OUT:"target/test_lib.lib" "test_lib.obj"
 ```
-Here we need another step, you can imagine the lib command like an aggregator of all the object files made by the compiler.
 
-##### As a lib user
+Here, we need another step. You can think of the `lib` command as an aggregator of all the object files produced by the compiler.
 
-To link your application with any library wou would need one of the two, the static library or the header library.
+## As a library user
 
-Also make sure to have the .h header files so you have the api available
+To link your application against a library, you need one of two things: a static library or an import library.
 
-How to integrate a static library to your application:
-```
+Also, make sure you have the `.h` header files so that the API is available to your application.
+
+How to integrate a static library into your application:
+
+```bat
 cl /Iinclude "src/main.cpp" /link "test_lib.lib"
 ```
-You can think of this step to be like, just add all the object files from the .lib file to my application, this is important because at the time of deploying my application, it wont need anything else, as a result the weight of the application will be bigger.
 
-How to integrate a runtime library to your application:
+You can think of this step as saying, "Just add all the object code from the `.lib` file to my application."
+
+This is important because, when deploying the application, it won't need the library separately at runtime. As a result, the executable will generally be larger.
+
+How to integrate a runtime library into your application:
+
+```bat
+cl /Iinclude "src/main.cpp" /link "target/MT/test_libdll.lib"
 ```
-cl /Iinclude "src/main.cpp" /link "/test_libdll.lib""
-```
-Here the step is the same, but for your application to be able to run remember it need the .dll file available at runtime. So the distribution of the application is different
 
+Here, the linking step is similar, but for your application to run, remember that the `.dll` file must be available at runtime. So, the distribution of the application is different.
 
-##### Here we got the full example
+## Here, we've got the full example
 
-###### 1) Creating runtime dependency linked against static crt
+### 1) Creating a runtime dependency linked against the static CRT
 
-```
+```bat
 cl /nologo /std:c++17 /EHsc /LD /MT /Iinclude "src/test_lib.cpp" /Fo:"target/MT/" ^
    /link /OUT:"target/MT/test_lib.dll" /IMPLIB:"target/MT/test_libdll.lib"
 
@@ -64,9 +70,9 @@ File Type: DLL
     KERNEL32.dll
 ```
 
-Linking against that runtime dependency from the application.
+Linking against that runtime dependency from the application:
 
-```
+```bat
 cl /nologo /std:c++17 /EHsc /MT /Iinclude "src/main.cpp" /Fo:"target/MT/" /Fe:"target/MT/main.exe" /link "target/MT/test_libdll.lib"
 
 Dump of file .\target\MT\test_lib.dll
@@ -82,11 +88,12 @@ File Type: EXECUTABLE IMAGE
     test_lib.dll
     KERNEL32.dll
 ```
-Here you can see that in order to run the application test_lib.dll and KERNERL32 (inherited from test_lib) need to be accessible at runtime.
 
-###### 2) Creating runtime dependency linked against runtime crt
+Here, you can see that, for the application to run, `test_lib.dll` needs to be accessible at runtime. `KERNEL32.dll` is also a dependency of the application.
 
-```
+### 2) Creating a runtime dependency linked against the runtime CRT
+
+```bat
 cl /nologo /std:c++17 /EHsc /LD /MD /Iinclude "src/test_lib.cpp" /Fo:"target/MD/" ^
    /link /OUT:"target/MD/test_lib.dll" /IMPLIB:"target/MD/test_libdll.lib"
 
@@ -103,11 +110,12 @@ File Type: DLL
     api-ms-win-crt-string-l1-1-0.dll
     api-ms-win-crt-runtime-l1-1-0.dll
 ```
-Here you can see the whole crt now is needed
 
-Linking against that runtime dependency from the application.
+Here, you can see that the DLL now depends on the runtime C/C++ libraries.
 
-```
+Linking against that runtime dependency from the application:
+
+```bat
 cl /nologo /std:c++17 /EHsc /MD /Iinclude "src/main.cpp" /Fo:"target/MD/" /Fe:"target/MD/main.exe" /link "target/MD/test_libdll.lib"
 
 Dump of file .\target\MD\main.exe
@@ -126,11 +134,11 @@ File Type: EXECUTABLE IMAGE
     api-ms-win-crt-heap-l1-1-0.dll
 ```
 
-Remember that the library and the application need to be linked the same way, you cant link your application with the runtime crt and the lib being linked with static crt, that would generate a conflict
+Remember that the library and the application should use compatible CRT configurations, especially when sharing memory, allocating or freeing resources, or passing CRT objects across module boundaries. Mixing CRT configurations can cause conflicts and undefined behavior.
 
-###### 3) Creating static dependency linked against runtime crt
+### 3) Creating a static dependency linked against the static CRT
 
-```
+```bat
 cl /nologo /std:c++17 /EHsc /c /MT /Iinclude "src/test_lib.cpp" /Fo:"target/"
 lib /nologo /OUT:"target/test_lib.lib" "target/test_lib.obj"
 
@@ -154,9 +162,9 @@ File Type: LIBRARY
    /EXPORT:add
 ```
 
-Here you can see it has no dependencies.
+Here, you can see that the library doesn't have any runtime DLL dependencies listed. Instead, its linker directives specify the libraries needed to link the code, including the static CRT.
 
-```
+```bat
 cl /nologo /std:c++17 /EHsc /MT /Iinclude "src/main.cpp" /Fo:"target/" /Fe:"target/main.exe" /link "target/test_lib.lib"
 
 Dump of file .\target\main.exe
@@ -169,10 +177,15 @@ File Type: EXECUTABLE IMAGE
 ```
 
 ---
-##### Conclusion
 
-Now its clear why it is a pain to distribute application and libraries without a package manager. You have to make sure you are using the correct version of the c runtime (glibc, muslc, wincrt) and also the user has to know what you are providing him with and how to link his application with.
-And linking your application with the dependency is not the end of the story, you will also have problems with naming conflicts, how the dependency is managing memory etc.
-Thats why language programing standards and good practices, even tho they add more work, end up generating lest headache.
-One of the advantages modern languages have over legacy ones for sure.
-Also this problem is completely managable once understood.
+## Conclusion
+
+Now it's clear why distributing applications and libraries without a package manager can be a pain. You have to make sure you're using the correct version of the C runtime (glibc, musl libc, or the Windows CRT), and the user has to know what you're providing and how to link it with their application.
+
+And linking your application against a dependency isn't the end of the story. You'll also have to deal with naming conflicts, how the dependency manages memory, and other issues.
+
+That's why programming language standards and good practices, even though they add more work, end up saving you a lot of headaches.
+
+This is one of the advantages modern languages have over legacy ones, for sure.
+
+Also, this problem is completely manageable once you understand it.
